@@ -13,6 +13,11 @@ const create_item_group = asynhandler(async (req, res) => {
     group_description,
   });
 
+  const existsItemGroup = await product_group.findOne({ itemGroupName });
+  if (existsItemGroup) {
+    throw new apiError(409, "Item Group with this name already exists");
+  }
+
   if (!itemGroup) {
     throw new apiError(500, "Server error");
   }
