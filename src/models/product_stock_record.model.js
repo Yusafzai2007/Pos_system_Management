@@ -7,7 +7,11 @@ const AutoIncrement = AutoIncrementFactory(mongoose);
 const TransactionSchema = new mongoose.Schema({
   date: { type: Date, required: true, default: Date.now },
   quantity: { type: Number, required: true },
-  type: { type: String, enum: ["Stock-In", "Stock-Out", "Opening"], required: true },
+  type: {
+    type: String,
+    enum: ["Stock-In", "Stock-Out", "Opening"],
+    required: true,
+  },
   reference: { type: String, required: true },
 });
 
@@ -19,9 +23,20 @@ const itemStockRecordSchema = new mongoose.Schema(
       ref: "Item",
       required: true,
     },
-    stockInId: { type: String, default: null },
-    stockOutId: { type: String, default: null },
-    openingStock: { type: Number, default: 0 },
+    stockInId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "StockIn",
+      default:null
+    },
+    stockOutId: { 
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "StockOut",
+      default:null
+    },
+    openingStock: {
+      type: Number,
+      default: 0,
+    },
     remainingStock: { type: Number, required: true },
     transactions: [TransactionSchema],
   },
@@ -43,10 +58,6 @@ itemStockRecordSchema.pre("save", function () {
     throw new Error("Stock level too low");
   }
 });
-
-
-
-
 
 itemStockRecordSchema.statics.updateStock = async function (
   productId,
@@ -91,11 +102,13 @@ itemStockRecordSchema.statics.updateStock = async function (
   return record;
 };
 
-
 // Instance method
 itemStockRecordSchema.methods.getCurrentStock = function () {
   return this.remainingStock;
 };
 
-const ItemStockRecord = mongoose.model("ItemStockRecord", itemStockRecordSchema);
+const ItemStockRecord = mongoose.model(
+  "ItemStockRecord",
+  itemStockRecordSchema
+);
 export default ItemStockRecord;

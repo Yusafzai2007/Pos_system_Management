@@ -5,7 +5,6 @@ const stockInCategorySchema = new mongoose.Schema(
     stockInCategoryName: {
       type: String,
       required: true,
-      unique: true,
     },
     category_description: {
       type: String,

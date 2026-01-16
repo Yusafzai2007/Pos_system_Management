@@ -5,7 +5,6 @@ const stockoutCategorySchema = new mongoose.Schema(
     stockoutCategoryName: {
       type: String,
       required: true,
-      unique: true,
     },
     stockout_category_description: {
       type: String,

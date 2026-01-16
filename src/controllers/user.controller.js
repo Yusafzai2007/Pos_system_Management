@@ -119,6 +119,14 @@ const users=asynhandler(async (req,res) => {
 
 
 
+const currentuser = asynhandler(async (req, res) => {
+  const user = req.user;
+  if (!user) {
+    throw new apiError(404, "user nto found");
+  }
+
+  res.status(200).json(new apiResponse(200, { users: user }, "succesfully"));
+});
 
 
 
@@ -128,4 +136,7 @@ const users=asynhandler(async (req,res) => {
 
 
 
-export { createaccount, user_login, logout_user, users };
+
+
+
+export { createaccount, user_login, logout_user, users,currentuser };

@@ -41,7 +41,7 @@ const itemSchema = new mongoose.Schema(
       unique: true,
     },
     serialNo: {
-      type:Boolean,
+      type: Boolean,
       default: false,
       required: true,
     },

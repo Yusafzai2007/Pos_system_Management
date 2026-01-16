@@ -8,15 +8,16 @@ const create_item_group = asynhandler(async (req, res) => {
   if (!itemGroupName || !group_description) {
     throw new apiError(400, "itemGroupName and group_title are required");
   }
-  const itemGroup = await product_group.create({
-    itemGroupName,
-    group_description,
-  });
+ 
 
   const existsItemGroup = await product_group.findOne({ itemGroupName });
   if (existsItemGroup) {
     throw new apiError(409, "Item Group with this name already exists");
   }
+   const itemGroup = await product_group.create({
+    itemGroupName,
+    group_description,
+  });
 
   if (!itemGroup) {
     throw new apiError(500, "Server error");
@@ -55,15 +56,17 @@ const delete_item_group = asynhandler(async (req, res) => {
 });
 
 const get_item_groups = asynhandler(async (req, res) => {
-  const itemGroups = await product_group.find();
+  // Note: 'createdAt' field ka spelling fix kiya (aapke model me exact field check karein)
+  const itemGroups = await product_group.find().sort({ createdAt: -1 });
+
   if (!itemGroups || itemGroups.length === 0) {
     throw new apiError(404, "No Item Groups found");
   }
-  res
-    .status(200)
-    .json(new apiResponse(200, "Item Groups fetched successfully", itemGroups));
-});
 
+  res.status(200).json(
+    new apiResponse(200, "Item Groups fetched successfully", itemGroups)
+  );
+});
 export {
   create_item_group,
   update_item_group,
