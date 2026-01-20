@@ -19,10 +19,10 @@ const stockoutCategorySchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 export const StockoutCategory = mongoose.model(
   "StockoutCategory",
-  stockoutCategorySchema
+  stockoutCategorySchema,
 );

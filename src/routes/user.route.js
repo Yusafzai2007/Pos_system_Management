@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   createaccount,
   currentuser,
+  deleteuser,
   logout_user,
   user_login,
   users,
@@ -23,6 +24,23 @@ route.get("/users",users)
 
 
 route.get("/current_user",jwtverify,currentuser)
+
+
+
+
+
+
+
+route.delete("/deleteuser/:id",deleteuser)
+
+
+
+
+
+
+
+
+
 
 
 export default route;

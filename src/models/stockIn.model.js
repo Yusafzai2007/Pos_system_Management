@@ -10,6 +10,11 @@ const stockInSchema = new mongoose.Schema(
       },
     ],
 
+    stcokIn_price:{
+      type:Number,
+      required:true
+    },
+
     stockAdded: {
       type: [Number],
       required: true,
@@ -49,7 +54,7 @@ const stockInSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 export const StockIn = mongoose.model("StockIn", stockInSchema);

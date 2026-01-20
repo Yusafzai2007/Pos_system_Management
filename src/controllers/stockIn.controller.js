@@ -13,6 +13,7 @@ const create_stockIn = asynhandler(async (req, res) => {
     stockInDate,
     stockInCategoryId,
     invoiceNo,
+    stcokIn_price,
     notes,
   } = req.body;
 
@@ -52,6 +53,7 @@ const create_stockIn = asynhandler(async (req, res) => {
     stockInDate,
     stockInCategoryId,
     invoiceNo,
+    stcokIn_price,
     notes,
   });
 
@@ -84,6 +86,7 @@ const update_stockIn = asynhandler(async (req, res) => {
     stockInDate,
     stockInCategoryId,
     invoiceNo,
+    stcokIn_price,
     notes,
   } = req.body;
 
@@ -134,6 +137,7 @@ const update_stockIn = asynhandler(async (req, res) => {
   existingStockIn.stockInCategoryId = stockInCategoryId;
   existingStockIn.invoiceNo = invoiceNo;
   existingStockIn.notes = notes;
+  existingStockIn.stcokIn_price = stcokIn_price;
 
   await existingStockIn.save();
 

@@ -24,4 +24,48 @@ const create_product_stock_record = asynhandler(async (req, res) => {
 });
 
 
-export { create_product_stock_record };
+const edit_product_stock_record = asynhandler(async (req, res) => {
+  const { id } = req.params;  // this id is the _id of stock record
+  const { openingStock } = req.body;
+
+  const record = await ItemStockRecord.findById(id);
+
+  if (!record) {
+    throw new apiError(404, "Stock record not found");
+  }
+
+  // Calculate difference
+  const difference = openingStock - record.openingStock;
+
+  record.openingStock = openingStock;
+  record.remainingStock += difference;
+
+  // Update existing Opening transaction (no new transaction)
+  const openingTxn = record.transactions.find(
+    (t) => t.type === "Opening" && t.reference.includes("Opening Stock")
+  );
+
+  if (openingTxn) {
+    openingTxn.quantity = Math.abs(openingStock);
+    openingTxn.date = new Date();
+    openingTxn.reference = "Opening Stock Edited";
+  } else {
+    record.transactions.push({
+      date: new Date(),
+      quantity: Math.abs(openingStock),
+      type: "Opening",
+      reference: "Opening Stock",
+    });
+  }
+
+  await record.save();
+
+  res.status(200).json(
+    new apiResponse(200, record, "Opening stock updated successfully")
+  );
+});
+
+
+
+
+export { create_product_stock_record,edit_product_stock_record };

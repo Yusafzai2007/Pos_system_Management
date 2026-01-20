@@ -118,6 +118,43 @@ const users=asynhandler(async (req,res) => {
 })
 
 
+ const deleteuser=asynhandler(async (req,res) => {
+   
+  const {id}=req.params;
+
+  const user=await User.findByIdAndDelete(id)
+
+  if (!user) {
+    throw new apiError(404,"userId not found")
+  }
+
+  
+  res.status(200).json(
+    new apiResponse(200,"delete successfully")
+  )
+
+ 
+
+
+
+
+
+ })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const currentuser = asynhandler(async (req, res) => {
   const user = req.user;
@@ -139,4 +176,4 @@ const currentuser = asynhandler(async (req, res) => {
 
 
 
-export { createaccount, user_login, logout_user, users,currentuser };
+export { createaccount, user_login, logout_user, users,currentuser,deleteuser };
