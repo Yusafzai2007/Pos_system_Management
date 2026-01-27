@@ -2,26 +2,41 @@ import { asynhandler } from "../utils/asynchandler.js";
 import { apiError } from "../utils/apiError.js";
 import { apiResponse } from "../utils/apiResponse.js";
 import ItemStockRecord from "../models/product_stock_record.model.js";
+import { item } from "../models/item.model.js";
 
 const create_product_stock_record = asynhandler(async (req, res) => {
   console.log("Controller hit");
   const { id: productId } = req.params;
   const { openingStock } = req.body;
 
+  // Fetch product prices from Item collection
+  const product = await item.findById(productId);
+
+  if (!product) {
+    throw new apiError(404, "Product not found");
+  }
+
+  const prices = {
+    costPrice: product.actual_item_price,
+    salePrice: product.selling_item_price,
+    discount: product.item_discount_price,
+    finalPrice: product.item_final_price,
+  };
 
   // Use the static method
   const stockRecord = await ItemStockRecord.updateStock(
     productId,
     openingStock,
     "Opening",
-    "Opening Stock"
+    "Opening Stock",
+    prices // <-- Pass prices here
   );
-
 
   res.status(201).json(
     new apiResponse(201, stockRecord, "Opening stock created successfully")
   );
 });
+
 
 
 const edit_product_stock_record = asynhandler(async (req, res) => {

@@ -63,7 +63,7 @@ const stockOutSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 export const StockOut = mongoose.model("StockOut", stockOutSchema);

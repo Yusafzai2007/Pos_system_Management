@@ -81,16 +81,14 @@ const update_item = asynhandler(async (req, res) => {
     isActive,
   } = req.body;
 
-  const itemdata = await item.findById(id);
+  const itemdata = await Item.findById(id);
   if (!itemdata) throw new apiError(404, "Item not found");
 
   const group = await product_group.findOne({
     itemGroupName: itemGroupName,
     isActive: true,
   });
-  if (!group) {
-    throw new apiError(404, "Item Group not found");
-  }
+  if (!group) throw new apiError(404, "Item Group not found");
 
   if (selling_item_price - item_discount_price < 0) {
     throw new apiError(400, "Discount cannot be greater than selling price");
@@ -99,7 +97,7 @@ const update_item = asynhandler(async (req, res) => {
   const existingSKU = await Item.findOne({ modelNoSKU, _id: { $ne: id } });
   if (existingSKU) throw new apiError(410, "Model SKU already exists");
 
-  // ✅ Update
+  // Update Item
   const updatedItem = await Item.findByIdAndUpdate(
     id,
     {
@@ -115,13 +113,71 @@ const update_item = asynhandler(async (req, res) => {
       unit,
       isActive,
     },
-    { new: true },
+    { new: true }
   );
+
+  // -------------------------
+  // UPDATE Product Edited History
+  // -------------------------
+  const record = await ItemStockRecord.findOne({ productId: id });
+
+  if (!record) {
+    // IF no record, create it once
+    await ItemStockRecord.create({
+      productId: id,
+      remainingStock: 0,
+      transactions: [
+        {
+          date: new Date(),
+          quantity: 0,
+          type: "Opening",
+          reference: "Product Edited",
+          costPrice: actual_item_price,
+          salePrice: selling_item_price,
+          discount: item_discount_price,
+          finalPrice: item_final_price,
+        },
+      ],
+    });
+  } else {
+    const editIndex = record.transactions.findIndex(
+      (t) => t.reference === "Product Edited"
+    );
+
+    if (editIndex !== -1) {
+      // UPDATE existing transaction
+      record.transactions[editIndex].date = new Date();
+      record.transactions[editIndex].costPrice = actual_item_price;
+      record.transactions[editIndex].salePrice = selling_item_price;
+      record.transactions[editIndex].discount = item_discount_price;
+      record.transactions[editIndex].finalPrice = item_final_price;
+
+      await record.save();
+    } else {
+      // Create ONLY once if not exist
+      record.transactions.push({
+        date: new Date(),
+        quantity: 0,
+        type: "Opening",
+        reference: "Product Edited",
+        costPrice: actual_item_price,
+        salePrice: selling_item_price,
+        discount: item_discount_price,
+        finalPrice: item_final_price,
+      });
+
+      await record.save();
+    }
+  }
 
   res
     .status(200)
     .json(new apiResponse(200, updatedItem, "Item updated successfully"));
 });
+
+
+
+
 
 const delete_item = asynhandler(async (req, res) => {
   const { id } = req.params;

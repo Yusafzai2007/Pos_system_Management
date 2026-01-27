@@ -13,6 +13,12 @@ const TransactionSchema = new mongoose.Schema({
     required: true,
   },
   reference: { type: String, required: true },
+
+  // ✅ Prices added here
+  costPrice: { type: Number, default: 0 },
+  salePrice: { type: Number, default: 0 },
+  discount: { type: Number, default: 0 },
+  finalPrice: { type: Number, default: 0 },
 });
 
 // Item Stock Record Schema
@@ -26,12 +32,12 @@ const itemStockRecordSchema = new mongoose.Schema(
     stockInId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "StockIn",
-      default:null
+      default: null,
     },
-    stockOutId: { 
+    stockOutId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "StockOut",
-      default:null
+      default: null,
     },
     openingStock: {
       type: Number,
@@ -50,9 +56,7 @@ itemStockRecordSchema.index({ productId: 1 });
 itemStockRecordSchema.index({ stockInId: 1 });
 itemStockRecordSchema.index({ stockOutId: 1 });
 
-// Auto-increment
-
-// Safe and modern
+// Pre save check
 itemStockRecordSchema.pre("save", function () {
   if (this.remainingStock < -10000) {
     throw new Error("Stock level too low");
@@ -63,7 +67,8 @@ itemStockRecordSchema.statics.updateStock = async function (
   productId,
   quantity,
   type,
-  reference
+  reference,
+  prices = {}
 ) {
   let record = await this.findOne({ productId });
 
@@ -78,6 +83,7 @@ itemStockRecordSchema.statics.updateStock = async function (
           quantity: Math.abs(quantity),
           type,
           reference,
+          ...prices,
         },
       ],
     });
@@ -88,19 +94,14 @@ itemStockRecordSchema.statics.updateStock = async function (
       quantity: Math.abs(quantity),
       type,
       reference,
+      ...prices,
     });
   }
 
-  // Use try/catch here to debug if save fails
-  try {
-    await record.save();
-  } catch (err) {
-    console.error("Error saving stock record:", err);
-    throw new apiError(500, "Failed to save stock record");
-  }
-
+  await record.save();
   return record;
 };
+
 
 // Instance method
 itemStockRecordSchema.methods.getCurrentStock = function () {
@@ -111,4 +112,5 @@ const ItemStockRecord = mongoose.model(
   "ItemStockRecord",
   itemStockRecordSchema
 );
+
 export default ItemStockRecord;

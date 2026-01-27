@@ -3,9 +3,10 @@ import { apiError } from "../utils/apiError.js";
 import { apiResponse } from "../utils/apiResponse.js";
 import { StockIn } from "../models/stockIn.model.js";
 import { item as Item } from "../models/item.model.js";
-/* ======================================================
-   CREATE STOCK-IN
-====================================================== */
+import { ProductBarcode } from "../models/product_barcode.model.js";
+import ItemStockRecord from "../models/product_stock_record.model.js";
+
+
 const create_stockIn = asynhandler(async (req, res) => {
   const {
     itemId,
@@ -57,22 +58,32 @@ const create_stockIn = asynhandler(async (req, res) => {
     notes,
   });
 
-  // 🔥 UPDATE ITEM STOCK
   for (let i = 0; i < itemId.length; i++) {
-    const item = await Item.findById(itemId[i]);
-    if (!item) {
-      throw new apiError(404, `Item not found: ${itemId[i]}`);
-    }
+    const productId = itemId[i];
+    const qty = stockAdded[i];
 
-    await Item.findByIdAndUpdate(itemId[i], {
-      $inc: { stock: stockAdded[i] },
-    });
+    const item = await Item.findById(productId);
+    if (!item) throw new apiError(404, `Item not found: ${productId}`);
+
+    await ItemStockRecord.updateStock(
+      productId,
+      qty,
+      "Stock-In",
+      stockIn._id.toString(),
+      {
+        costPrice: item.actual_item_price,
+        salePrice: item.selling_item_price,
+        discount: item.item_discount_price,
+        finalPrice: item.item_final_price,
+      }
+    );
   }
 
   res
     .status(201)
     .json(new apiResponse(201, stockIn, "Stock-In created successfully"));
 });
+
 
 /* ======================================================
    UPDATE STOCK-IN
@@ -163,11 +174,39 @@ const delete_stockIn = asynhandler(async (req, res) => {
 });
 
 const get_stockIn = asynhandler(async (req, res) => {
-  const data = await StockIn.find();
+  const stockInData = await StockIn.find()
+    .populate({
+      path: "itemId",
+      populate: {
+        path: "itemGroupId",
+        model: "product_group",
+      },
+    })
+    .populate("stockInCategoryId")
+    .lean(); // ⭐ IMPORTANT
 
-  res
-    .status(200)
-    .json(new apiResponse(200, data, "Stock-In data fetched successfully"));
+  // 🔹 Collect all item IDs
+  const itemIds = stockInData.flatMap(s =>
+    s.itemId.map(i => i._id)
+  );
+
+  // 🔹 Find barcodes where product id matches
+  const barcodes = await ProductBarcode.find({
+    stock_productId: { $in: itemIds },
+  });
+
+  // 🔹 Attach barcodes to items
+  stockInData.forEach(stock => {
+    stock.itemId.forEach(item => {
+      item.barcodes = barcodes.filter(
+        b => b.stock_productId.toString() === item._id.toString()
+      );
+    });
+  });
+
+  res.status(200).json(
+    new apiResponse(200, stockInData, "Stock-In data fetched successfully")
+  );
 });
 
 export { create_stockIn, update_stockIn, delete_stockIn, get_stockIn };

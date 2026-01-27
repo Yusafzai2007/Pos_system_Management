@@ -58,4 +58,12 @@ const itemSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+
+// 👇 Virtual populate
+itemSchema.virtual("barcodes", {
+  ref: "product_barcode",
+  localField: "_id",
+  foreignField: "stock_productId",
+});
+
 export const item = mongoose.model("item", itemSchema);

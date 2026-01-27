@@ -5,11 +5,10 @@ const stockInSchema = new mongoose.Schema(
     itemId: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Item",
+        ref: "item",
         required: true,
       },
     ],
-
     stcokIn_price:{
       type:Number,
       required:true
