@@ -203,10 +203,10 @@ export const getStockGroupedByProduct = async (req, res) => {
       {
         $group: {
           _id: "$productId",
-          stockRecordIds: { $push: "$_id" }, // <-- add this
+          stockRecordIds: { $push: "$_id" },
           totalRemainingStock: { $sum: "$remainingStock" },
           totalOpeningStock: { $sum: "$openingStock" },
-          allTransactions: { $push: "$transactions" },
+          allTransactions: { $push: "$transactions" }, // nested arrays
         },
       },
       {
@@ -226,12 +226,10 @@ export const getStockGroupedByProduct = async (req, res) => {
           as: "barcodes",
         },
       },
-
-      // ✅ Add stockRecordIds here
       {
         $project: {
           _id: 1,
-          stockRecordIds: 1, // <-- must add
+          stockRecordIds: 1,
           totalRemainingStock: 1,
           totalOpeningStock: 1,
           allTransactions: 1,
@@ -241,10 +239,20 @@ export const getStockGroupedByProduct = async (req, res) => {
       },
     ]);
 
+    // 🔹 Reverse transaction history per product
+    const reversedData = data.map(product => {
+      return {
+        ...product,
+        allTransactions: product.allTransactions
+          .flat() // flatten nested arrays
+          .sort((a, b) => new Date(b.date) - new Date(a.date)), // newest first
+      };
+    });
+
     res.status(200).json({
       success: true,
-      count: data.length,
-      data,
+      count: reversedData.length,
+      data: reversedData,
     });
   } catch (error) {
     res.status(500).json({
@@ -253,6 +261,7 @@ export const getStockGroupedByProduct = async (req, res) => {
     });
   }
 };
+
 
 import mongoose from "mongoose";
 

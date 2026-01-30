@@ -6,7 +6,7 @@ const stockOutSchema = new mongoose.Schema(
       type: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: "Item",
+          ref: "item",
         },
       ],
       required: true,

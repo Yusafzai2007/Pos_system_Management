@@ -72,6 +72,7 @@ itemStockRecordSchema.statics.updateStock = async function (
 ) {
   let record = await this.findOne({ productId });
 
+  // 🟢 FIRST TIME (Opening / First Stock-In)
   if (!record) {
     record = new this({
       productId,
@@ -88,7 +89,15 @@ itemStockRecordSchema.statics.updateStock = async function (
       ],
     });
   } else {
+    // ❌ Opening dobara allow nahi
+    if (type === "Opening") {
+      throw new Error("Opening stock can be set only once");
+    }
+
+    // ✅ Stock add / minus
     record.remainingStock += quantity;
+
+    // ✅ HAR Stock-In / Stock-Out ki NEW history
     record.transactions.push({
       date: new Date(),
       quantity: Math.abs(quantity),
@@ -101,6 +110,9 @@ itemStockRecordSchema.statics.updateStock = async function (
   await record.save();
   return record;
 };
+
+
+
 
 
 // Instance method
