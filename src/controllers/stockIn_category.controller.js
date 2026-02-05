@@ -64,6 +64,7 @@ const update_stockIn_category = asynhandler(async (req, res) => {
       )
     );
 });
+
 const delete_stockIn_category = asynhandler(async (req, res) => {
   const { id } = req.params;
   if (!id) {

@@ -8,13 +8,12 @@ const create_item_group = asynhandler(async (req, res) => {
   if (!itemGroupName || !group_description) {
     throw new apiError(400, "itemGroupName and group_title are required");
   }
- 
 
   const existsItemGroup = await product_group.findOne({ itemGroupName });
   if (existsItemGroup) {
     throw new apiError(409, "Item Group with this name already exists");
   }
-   const itemGroup = await product_group.create({
+  const itemGroup = await product_group.create({
     itemGroupName,
     group_description,
   });
@@ -34,7 +33,7 @@ const update_item_group = asynhandler(async (req, res) => {
   const itemGroup = await product_group.findByIdAndUpdate(
     id,
     { itemGroupName, group_description, isActive },
-    { new: true }
+    { new: true },
   );
   if (!itemGroup) {
     throw new apiError(404, "Item Group not found");
@@ -63,9 +62,9 @@ const get_item_groups = asynhandler(async (req, res) => {
     throw new apiError(404, "No Item Groups found");
   }
 
-  res.status(200).json(
-    new apiResponse(200, "Item Groups fetched successfully", itemGroups)
-  );
+  res
+    .status(200)
+    .json(new apiResponse(200, "Item Groups fetched successfully", itemGroups));
 });
 export {
   create_item_group,

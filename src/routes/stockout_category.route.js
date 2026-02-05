@@ -13,4 +13,6 @@ router.put("/update_stockOut_category/:id", update_stockOut_category);
 router.delete("/delete_stockOut_category/:id", delete_stockOut_category);
 router.get("/get_stockOut_categories", get_stockOut_categories);
 
+
+
 export default router;

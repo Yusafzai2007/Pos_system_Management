@@ -5,6 +5,8 @@ import { product_group } from "../models/product_group.model.js";
 import { item, item as Item } from "../models/item.model.js";
 import ItemStockRecord from "../models/product_stock_record.model.js";
 
+import { StockOut } from "../models/stock_out.model.js";
+
 const create_item = asynhandler(async (req, res) => {
   const {
     itemGroupName,
@@ -113,7 +115,7 @@ const update_item = asynhandler(async (req, res) => {
       unit,
       isActive,
     },
-    { new: true }
+    { new: true },
   );
 
   // -------------------------
@@ -141,7 +143,7 @@ const update_item = asynhandler(async (req, res) => {
     });
   } else {
     const editIndex = record.transactions.findIndex(
-      (t) => t.reference === "Product Edited"
+      (t) => t.reference === "Product Edited",
     );
 
     if (editIndex !== -1) {
@@ -175,16 +177,30 @@ const update_item = asynhandler(async (req, res) => {
     .json(new apiResponse(200, updatedItem, "Item updated successfully"));
 });
 
-
-
-
-
 const delete_item = asynhandler(async (req, res) => {
   const { id } = req.params;
   const itemdata = await item.findById(id);
   if (!itemdata) throw new apiError(404, "Item not found");
+
+  await StockIn.deleteMany({ itemId: id });
+
+  await StockOut.deleteMany({ itemId: id });
+
+  await ProductBarcode.deleteMany({ stock_productId: id });
+
+  await ItemStockRecord.deleteOne({ productId: id });
+
   await item.findByIdAndDelete(id);
-  res.status(200).json(new apiResponse(200, null, "Item deleted successfully"));
+
+  res
+    .status(200)
+    .json(
+      new apiResponse(
+        200,
+        null,
+        "Item and all related records deleted successfully",
+      ),
+    );
 });
 
 const get_items = asynhandler(async (req, res) => {
@@ -240,7 +256,7 @@ export const getStockGroupedByProduct = async (req, res) => {
     ]);
 
     // 🔹 Reverse transaction history per product
-    const reversedData = data.map(product => {
+    const reversedData = data.map((product) => {
       return {
         ...product,
         allTransactions: product.allTransactions
@@ -262,8 +278,9 @@ export const getStockGroupedByProduct = async (req, res) => {
   }
 };
 
-
 import mongoose from "mongoose";
+import { StockIn } from "../models/stockIn.model.js";
+import { ProductBarcode } from "../models/product_barcode.model.js";
 
 const getStockGroupedByProductId = async (req, res) => {
   try {

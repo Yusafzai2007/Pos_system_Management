@@ -20,7 +20,7 @@ const stockOutSchema = new mongoose.Schema(
 
     stockOutCategoryId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "stockOutCategory",
+      ref: "StockoutCategory",
       required: true,
     },
     Total_sale: {

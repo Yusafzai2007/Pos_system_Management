@@ -29,18 +29,18 @@ const create_product_stock_record = asynhandler(async (req, res) => {
     openingStock,
     "Opening",
     "Opening Stock",
-    prices // <-- Pass prices here
+    prices, // <-- Pass prices here
   );
 
-  res.status(201).json(
-    new apiResponse(201, stockRecord, "Opening stock created successfully")
-  );
+  res
+    .status(201)
+    .json(
+      new apiResponse(201, stockRecord, "Opening stock created successfully"),
+    );
 });
 
-
-
 const edit_product_stock_record = asynhandler(async (req, res) => {
-  const { id } = req.params;  // this id is the _id of stock record
+  const { id } = req.params; // this id is the _id of stock record
   const { openingStock } = req.body;
 
   const record = await ItemStockRecord.findById(id);
@@ -57,7 +57,7 @@ const edit_product_stock_record = asynhandler(async (req, res) => {
 
   // Update existing Opening transaction (no new transaction)
   const openingTxn = record.transactions.find(
-    (t) => t.type === "Opening" && t.reference.includes("Opening Stock")
+    (t) => t.type === "Opening" && t.reference.includes("Opening Stock"),
   );
 
   if (openingTxn) {
@@ -75,12 +75,9 @@ const edit_product_stock_record = asynhandler(async (req, res) => {
 
   await record.save();
 
-  res.status(200).json(
-    new apiResponse(200, record, "Opening stock updated successfully")
-  );
+  res
+    .status(200)
+    .json(new apiResponse(200, record, "Opening stock updated successfully"));
 });
 
-
-
-
-export { create_product_stock_record,edit_product_stock_record };
+export { create_product_stock_record, edit_product_stock_record };

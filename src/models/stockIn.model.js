@@ -9,51 +9,53 @@ const stockInSchema = new mongoose.Schema(
         required: true,
       },
     ],
-    stcokIn_price:{
-      type:Number,
-      required:true
-    },
 
+    // 🔗 NEW: transaction linking
+    transactions: [
+      {
+        productId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "item",
+          required: true,
+        },
+        transactionId: {
+          type: mongoose.Schema.Types.ObjectId,
+          required: true,
+        },
+      },
+    ],
+
+    stcokIn_price: {
+      type: Number,
+      required: true,
+    },
     stockAdded: {
       type: [Number],
       required: true,
     },
-
     stockInDate: {
       type: Date,
       required: true,
     },
-
     stockInCategoryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "StockInCategory",
       required: true,
     },
-
     invoiceNo: {
       type: String,
       unique: true,
       trim: true,
     },
-
-    notes: {
-      type: String,
-    },
-
+    notes: String,
     isActive: {
       type: Boolean,
       default: true,
     },
-
-    deletedAt: {
-      type: Date,
-    },
+    deletedAt: Date,
   },
-  {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
-  },
+  { timestamps: true }
 );
+
 
 export const StockIn = mongoose.model("StockIn", stockInSchema);

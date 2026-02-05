@@ -15,7 +15,7 @@ const generateaccesstoekn = async (userId) => {
 };
 
 const createaccount = asynhandler(async (req, res) => {
-  const { userName, email, password } = req.body;
+  const { userName, email, password,role } = req.body;
 
   if (!userName || !email || !password) {
     throw new apiError(400, "All fields are required");
@@ -27,13 +27,13 @@ const createaccount = asynhandler(async (req, res) => {
   }
 
  
-
+   const newrole=role ||'user'
   // 4️⃣ Create user
   const user = await User.create({
     userName,
     email,
     password,
-    role: "user",
+    role: newrole,
   });
 
   if (!user) {

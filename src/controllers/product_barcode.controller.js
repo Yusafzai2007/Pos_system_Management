@@ -23,7 +23,7 @@ const create_barcode = asynhandler(async (req, res) => {
   // Check for duplicates
   const existingBarcodes = await ProductBarcode.find({
     stock_productId,
-    barcode_serila: { $in: barcode_serila }
+    barcode_serila: { $in: barcode_serila },
   });
 
   if (existingBarcodes.length > 0) {
@@ -42,7 +42,7 @@ const create_barcode = asynhandler(async (req, res) => {
   res
     .status(201)
     .json(
-      new apiResponse(201, create_barcode, "Barcodes created successfully")
+      new apiResponse(201, create_barcode, "Barcodes created successfully"),
     );
 });
 
@@ -83,7 +83,7 @@ const update_single_barcode = asynhandler(async (req, res) => {
     const existingBarcode = await ProductBarcode.findOne({
       stock_productId: barcode.stock_productId,
       barcode_serila: barcode_serila,
-      _id: { $ne: id }
+      _id: { $ne: id },
     });
 
     if (existingBarcode) {
@@ -98,9 +98,14 @@ const update_single_barcode = asynhandler(async (req, res) => {
 
   await barcode.save();
 
-  res.status(200).json(
-    new apiResponse(200, barcode, "Barcode updated successfully")
-  );
+  res
+    .status(200)
+    .json(new apiResponse(200, barcode, "Barcode updated successfully"));
 });
 
-export { create_barcode, get_all_barcodes, delete_barcode, update_single_barcode };
+export {
+  create_barcode,
+  get_all_barcodes,
+  delete_barcode,
+  update_single_barcode,
+};
