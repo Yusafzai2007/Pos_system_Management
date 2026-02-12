@@ -18,7 +18,7 @@ const create_stockOut = asynhandler(async (req, res) => {
     invoiceNo,
   } = req.body;
 
-  // Validation
+  // ------------------- VALIDATION -------------------
   if (!Array.isArray(itemId) || !Array.isArray(quantity))
     throw new apiError(400, "itemId and quantity must be arrays");
 
@@ -28,18 +28,16 @@ const create_stockOut = asynhandler(async (req, res) => {
   if (!stockOutCategoryId || !Total_sale || !stockOutDate)
     throw new apiError(400, "Required fields missing");
 
-  // Invoice unique
   if (invoiceNo) {
     const exists = await StockOut.findOne({ invoiceNo });
     if (exists) throw new apiError(409, "Invoice number already exists");
   }
 
-  // Quantity > 0
   for (let qty of quantity) {
     if (qty <= 0) throw new apiError(400, "Quantity must be greater than 0");
   }
 
-  // Create Stock-Out
+  // ------------------- CREATE STOCK-OUT -------------------
   const stockOut = await StockOut.create({
     itemId,
     quantity,
@@ -49,7 +47,7 @@ const create_stockOut = asynhandler(async (req, res) => {
     invoiceNo,
   });
 
-  // 🔥 STOCK CHECK + UPDATE
+  // ------------------- UPDATE STOCK -------------------
   for (let i = 0; i < itemId.length; i++) {
     const productId = itemId[i];
     const qty = quantity[i];
@@ -57,28 +55,35 @@ const create_stockOut = asynhandler(async (req, res) => {
     const item = await Item.findById(productId);
     if (!item) throw new apiError(404, `Item not found: ${productId}`);
 
-    // ✅ CHECK remaining stock
     const record = await ItemStockRecord.findOne({ productId });
-    if (!record || record.remainingStock < qty) {
+
+    if (!record) {
       throw new apiError(
         400,
-        `Insufficient stock. Available: ${record?.remainingStock || 0}`,
+        `Opening stock required for first entry of product: ${item.item_name || productId}`
       );
     }
 
-    // ✅ Minus stock + history
-    await ItemStockRecord.updateStock(
+    if (record.remainingStock < qty) {
+      throw new apiError(
+        400,
+        `Insufficient stock for product: ${item.item_name || productId}. Available: ${record.remainingStock}`
+      );
+    }
+
+    // Update stock using correct object format
+    await ItemStockRecord.updateStock({
       productId,
-      -qty,
-      "Stock-Out",
-      stockOut._id.toString(),
-      {
+      quantity: -qty, // negative for Stock-Out
+      type: "Stock-Out",
+      reference: stockOut._id.toString(),
+      prices: {
         costPrice: item.actual_item_price,
         salePrice: item.selling_item_price,
         discount: item.item_discount_price,
         finalPrice: item.item_final_price,
       },
-    );
+    });
   }
 
   res
@@ -90,56 +95,95 @@ const create_stockOut = asynhandler(async (req, res) => {
    UPDATE STOCK-OUT
 ====================================================== */
 const update_stockOut = asynhandler(async (req, res) => {
-  const { id } = req.params;
-  const {
-    itemId,
-    quantity,
-    stockOutCategoryId,
-    Total_sale,
-    stockOutDate,
-    invoiceNo,
-  } = req.body;
+  try {
+    const { id } = req.params;
+    const { itemId, quantity, stockOutCategoryId, Total_sale, stockOutDate, invoiceNo } = req.body;
 
-  const existingStockOut = await StockOut.findById(id);
-  if (!existingStockOut) throw new apiError(404, "Stock-Out record not found");
+    const existingStockOut = await StockOut.findById(id);
+    if (!existingStockOut) throw new apiError(404, "Stock-Out record not found");
 
-  // Reverse old stock
-  for (let i = 0; i < existingStockOut.itemId.length; i++) {
-    await Item.findByIdAndUpdate(existingStockOut.itemId[i], {
-      $inc: { stock: existingStockOut.quantity[i] },
-    });
-  }
+    // Validation
+    if (!Array.isArray(itemId) || !Array.isArray(quantity))
+      throw new apiError(400, "itemId and quantity must be arrays");
+    if (itemId.length !== quantity.length)
+      throw new apiError(400, "itemId and quantity length must match");
 
-  // Validation new data
-  if (!Array.isArray(itemId) || !Array.isArray(quantity))
-    throw new apiError(400, "itemId and quantity must be arrays");
-  if (itemId.length !== quantity.length)
-    throw new apiError(400, "itemId and quantity length must match");
+    // Loop through items
+    for (let i = 0; i < itemId.length; i++) {
+      const productId = itemId[i];
+      const oldQty = Number(existingStockOut.quantity[i]) || 0;
+      const newQty = Number(quantity[i]);
 
-  for (let i = 0; i < itemId.length; i++) {
-    const item = await Item.findById(itemId[i]);
-    if (!item) throw new apiError(404, `Item not found: ${itemId[i]}`);
-    if (item.stock < quantity[i])
-      throw new apiError(400, `Insufficient stock for item: ${item.name}`);
-    await Item.findByIdAndUpdate(itemId[i], { $inc: { stock: -quantity[i] } });
-  }
+      if (isNaN(newQty) || newQty < 0)
+        throw new apiError(400, "Invalid quantity for item: " + productId);
 
-  // Update Stock-Out record
-  existingStockOut.itemId = itemId;
-  existingStockOut.quantity = quantity;
-  existingStockOut.stockOutCategoryId = stockOutCategoryId;
-  existingStockOut.Total_sale = Total_sale;
-  existingStockOut.stockOutDate = stockOutDate;
-  existingStockOut.invoiceNo = invoiceNo;
+      const difference = newQty - oldQty; // 🔹 positive -> reduce more stock, negative -> add back
 
-  await existingStockOut.save();
+      const item = await Item.findById(productId);
+      if (!item) throw new apiError(404, `Item not found: ${productId}`);
 
-  res
-    .status(200)
-    .json(
-      new apiResponse(200, existingStockOut, "Stock-Out updated successfully"),
+      if (item.stock < difference * 1 && difference > 0) // ensure enough stock to reduce
+        throw new apiError(400, `Insufficient stock for item: ${item.name}`);
+
+      // Update remaining stock in ItemStockRecord
+      await ItemStockRecord.updateOne(
+        { productId },
+        { $inc: { remainingStock: -difference } } // minus difference for Stock-Out
+      );
+
+      // Update the Stock-Out transaction
+      const updated = await ItemStockRecord.updateOne(
+        { productId, "transactions.reference": existingStockOut._id.toString() },
+        {
+          $set: {
+            "transactions.$[t].quantity": newQty,
+            "transactions.$[t].type": "Stock-Out",
+            "transactions.$[t].finalPrice": item.item_final_price || 0,
+          },
+        },
+        {
+          arrayFilters: [{ "t.reference": existingStockOut._id.toString(), "t.type": "Stock-Out" }],
+        }
+      );
+
+      // If transaction doesn't exist, create it
+      if (updated.modifiedCount === 0) {
+        await ItemStockRecord.updateOne(
+          { productId },
+          {
+            $push: {
+              transactions: {
+                date: stockOutDate ? new Date(stockOutDate) : new Date(),
+                quantity: newQty,
+                type: "Stock-Out",
+                reference: existingStockOut._id.toString(),
+                finalPrice: item.item_final_price || 0,
+              },
+            },
+          }
+        );
+      }
+    }
+
+    // Update Stock-Out document
+    existingStockOut.itemId = itemId;
+    existingStockOut.quantity = quantity;
+    existingStockOut.stockOutCategoryId = stockOutCategoryId;
+    existingStockOut.Total_sale = Total_sale;
+    existingStockOut.stockOutDate = stockOutDate;
+    existingStockOut.invoiceNo = invoiceNo;
+
+    await existingStockOut.save();
+
+    res.status(200).json(
+      new apiResponse(200, existingStockOut, "Stock-Out updated successfully")
     );
+  } catch (error) {
+    console.error("❌ Stock-Out Update Error:", error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
 });
+
 
 /* ======================================================
    DELETE STOCK-OUT (Soft Delete)
@@ -171,6 +215,9 @@ const delete_stockOut = asynhandler(async (req, res) => {
     );
 });
 
+
+
+
 const get_stockOut = asynhandler(async (req, res) => {
   // 1️⃣ Fetch all Stock-Out records with items and categories
   const stockOutData = await StockOut.find()
@@ -192,58 +239,34 @@ const get_stockOut = asynhandler(async (req, res) => {
     stock_productId: { $in: itemIds },
   });
 
-  // 4️⃣ Aggregate total stock-in per item
-  const stockIns = await StockIn.aggregate([
-    { $match: { itemId: { $in: itemIds } } },
-    {
-      $group: {
-        _id: "$itemId",
-        totalStockIn: { $sum: { $sum: "$stockAdded" } }, // Sum all stockAdded array values
-      },
-    },
-  ]);
+  // 4️⃣ Attach openingStock, remainingStock, barcodes to each item
+  for (const stock of stockOutData) {
+    for (const item of stock.itemId) {
+      // Fetch ItemStockRecord for this item
+      const record = await ItemStockRecord.findOne({ productId: item._id });
 
-  // 5️⃣ Aggregate total stock-out per item
-  const stockOuts = await StockOut.aggregate([
-    { $unwind: "$itemId" },
-    { $match: { itemId: { $in: itemIds } } },
-    {
-      $group: {
-        _id: "$itemId",
-        totalStockOut: { $sum: { $sum: "$quantity" } }, // Sum all quantity array values
-      },
-    },
-  ]);
+      item.openingStock = record?.openingStock || 0;       // Exact opening stock
+      item.remainingStock = record?.remainingStock || 0;   // Exact remaining stock
 
-  // 6️⃣ Map stock-ins and stock-outs for quick lookup
-  const stockInMap = new Map(
-    stockIns.map((s) => [s._id.toString(), s.totalStockIn]),
-  );
-  const stockOutMap = new Map(
-    stockOuts.map((s) => [s._id.toString(), s.totalStockOut]),
-  );
-
-  // 7️⃣ Attach openingStock, remainingStock, barcodes to each item
-  stockOutData.forEach((stock) => {
-    stock.itemId.forEach((item) => {
-      const stockIn = stockInMap.get(item._id.toString()) || 0;
-      const stockOut = stockOutMap.get(item._id.toString()) || 0;
-
-      item.openingStock = stockIn;
-      item.remainingStock = stockIn - stockOut;
+      // Attach barcodes
       item.barcodes = barcodes.filter(
-        (b) => b.stock_productId.toString() === item._id.toString(),
+        (b) => b.stock_productId.toString() === item._id.toString()
       );
-    });
-  });
+    }
+  }
 
-  // 8️⃣ Send response
-  res
-    .status(200)
-    .json(
-      new apiResponse(200, stockOutData, "Stock-Out data fetched successfully"),
-    );
+  // 5️⃣ Send response
+  res.status(200).json(
+    new apiResponse(200, stockOutData, "Stock-Out data fetched successfully")
+  );
 });
+
+
+
+
+
+
+
 import mongoose from "mongoose";
 import { StockIn } from "../models/stockIn.model.js";
 

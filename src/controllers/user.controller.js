@@ -15,7 +15,7 @@ const generateaccesstoekn = async (userId) => {
 };
 
 const createaccount = asynhandler(async (req, res) => {
-  const { userName, email, password,role } = req.body;
+  const { userName, email, password, role } = req.body;
 
   if (!userName || !email || !password) {
     throw new apiError(400, "All fields are required");
@@ -26,26 +26,32 @@ const createaccount = asynhandler(async (req, res) => {
     throw new apiError(409, "Email already exists");
   }
 
- 
-   const newrole=role ||'user'
-  // 4️⃣ Create user
+  const newrole = role || "user";
+  const newstatus = req.body.status
+    ? req.body.status.toLowerCase() === "deactive"
+      ? "inactive"
+      : req.body.status.toLowerCase()
+    : "active";
+
   const user = await User.create({
     userName,
     email,
     password,
     role: newrole,
+    status: newstatus, // ✅ status save karo
   });
 
   if (!user) {
     throw new apiError(500, "Server error");
   }
 
-  // 5️⃣ Response
-  res
-    .status(201)
-    .json(new apiResponse(201, "User created successfully", user));
+  res.status(201).json({
+    status: 201,
+    success: true,
+    message: "User created successfully",
+    data: user,
+  });
 });
-
 
 const user_login = asynhandler(async (req, res) => {
   const { email, password } = req.body;
@@ -67,7 +73,7 @@ const user_login = asynhandler(async (req, res) => {
   }
 
   const { isrefrehtoken, isaccesstoken } = await generateaccesstoekn(
-    checkuser._id
+    checkuser._id,
   );
 
   console.log("isaccesstoken", isaccesstoken);
@@ -102,59 +108,27 @@ const logout_user = asynhandler(async (req, res) => {
     .json(new apiResponse(200, "logout user successfully"));
 });
 
+const users = asynhandler(async (req, res) => {
+  const user = await User.find().select("-password");
 
-
-
-const users=asynhandler(async (req,res) => {
-  
-  const user=await User.find().select("-password")
-
-  if (!user || user.length===0) {
+  if (!user || user.length === 0) {
     throw new apiError(404, "no user found");
   }
 
-  res.status(200).json(new apiResponse(200,user,"all users"))
+  res.status(200).json(new apiResponse(200, user, "all users"));
+});
 
-})
+const deleteuser = asynhandler(async (req, res) => {
+  const { id } = req.params;
 
-
- const deleteuser=asynhandler(async (req,res) => {
-   
-  const {id}=req.params;
-
-  const user=await User.findByIdAndDelete(id)
+  const user = await User.findByIdAndDelete(id);
 
   if (!user) {
-    throw new apiError(404,"userId not found")
+    throw new apiError(404, "userId not found");
   }
 
-  
-  res.status(200).json(
-    new apiResponse(200,"delete successfully")
-  )
-
- 
-
-
-
-
-
- })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  res.status(200).json(new apiResponse(200, "delete successfully"));
+});
 
 const currentuser = asynhandler(async (req, res) => {
   const user = req.user;
@@ -166,14 +140,65 @@ const currentuser = asynhandler(async (req, res) => {
 });
 
 
+const singleuser = asynhandler(async (req, res) => {
+  const { id } = req.params;
+
+  const user = await User.findById(id).select("-password");
+
+  if (!user) {
+    throw new apiError(404, "userId not found");
+  }
+
+  res.status(200).json(new apiResponse(200, user, "single user"));
+});
+
+
+
+// Update user
+const update_user = asynhandler(async (req, res) => {
+  const { id } = req.params;
+  const { userName, email, role, status } = req.body;
+
+  const user = await User.findById(id);
+  if (!user) {
+    throw new apiError(404, "User not found");
+  }
+
+  // Check if email is being updated to an existing one
+  if (email && email !== user.email) {
+    const emailExists = await User.findOne({ email });
+    if (emailExists) {
+      throw new apiError(409, "Email already in use");
+    }
+  }
+
+  user.userName = userName || user.userName;
+  user.email = email || user.email;
+  user.role = role || user.role;
+  if (status) {
+    user.status =
+      status.toLowerCase() === "deactive"
+        ? "inactive"
+        : status.toLowerCase();
+  }
+
+  await user.save();
+
+  res
+    .status(200)
+    .json(new apiResponse(200, user, "User updated successfully"));
+});
 
 
 
 
-
-
-
-
-
-
-export { createaccount, user_login, logout_user, users,currentuser,deleteuser };
+export {
+  createaccount,
+  user_login,
+  logout_user,
+  users,
+  currentuser,
+  deleteuser,
+  singleuser,
+  update_user,
+};

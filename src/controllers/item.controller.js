@@ -21,34 +21,68 @@ const create_item = asynhandler(async (req, res) => {
     unit,
   } = req.body;
 
+  // Validate required fields
   if (
     !itemGroupName ||
     !item_Name ||
     !item_Description ||
     actual_item_price === undefined ||
     selling_item_price === undefined ||
-    !item_final_price ||
+    item_final_price === undefined ||
     !modelNoSKU ||
     !unit
   ) {
     throw new apiError(400, "All fields are required");
   }
 
+  // Validate prices are numbers
+  if (
+    typeof actual_item_price !== "number" ||
+    typeof selling_item_price !== "number" ||
+    typeof item_discount_price !== "number" ||
+    typeof item_final_price !== "number"
+  ) {
+    throw new apiError(400, "Prices must be valid numbers");
+  }
+
+  // Check discount is not more than selling price
+  if (item_discount_price > selling_item_price) {
+    throw new apiError(401, "Discount cannot be greater than selling price");
+  }
+
+  // Calculate expected final price
+  const expectedFinalPrice = selling_item_price - item_discount_price;
+
+  // Check final price matches calculation
+  if (item_final_price !== expectedFinalPrice) {
+    throw new apiError(
+      402,
+      `Final price must be equal to selling price minus discount (${expectedFinalPrice})`
+    );
+  }
+
+  // Check final price is not less than actual price
+  if (item_final_price < actual_item_price) {
+    throw new apiError(
+      403,
+      "Final price cannot be less than actual item price. Selling at a loss is not allowed!"
+    );
+  }
+
+  // Check if item already exists
   const existingItem = await Item.findOne({ modelNoSKU });
   if (existingItem) throw new apiError(410, "Model SKU already exists");
 
+  // Check if group exists
   const group = await product_group.findOne({
     itemGroupName: itemGroupName,
     isActive: true,
   });
-
   if (!group) {
     throw new apiError(404, "Item Group not found");
   }
-  if (selling_item_price - item_discount_price < 0) {
-    throw new apiError(401, "Discount cannot be greater than selling price");
-  }
 
+  // Create new item
   const newItem = await Item.create({
     itemGroupId: group._id,
     item_Name,
@@ -66,6 +100,7 @@ const create_item = asynhandler(async (req, res) => {
     .status(201)
     .json(new apiResponse(201, newItem, "Item created successfully"));
 });
+
 
 const update_item = asynhandler(async (req, res) => {
   const { id } = req.params;
@@ -287,24 +322,23 @@ const getStockGroupedByProductId = async (req, res) => {
     const { productId } = req.params;
 
     const data = await ItemStockRecord.aggregate([
-      // ✅ 0️⃣ FILTER SINGLE PRODUCT
+      // 0️⃣ Filter single product
       {
-        $match: {
-          productId: new mongoose.Types.ObjectId(productId),
-        },
+        $match: { productId: new mongoose.Types.ObjectId(productId) },
       },
 
-      // 1️⃣ GROUP
+      // 1️⃣ Group
       {
         $group: {
           _id: "$productId",
+          stockRecordIds: { $push: "$_id" }, // 🔹 add ItemStockRecord _id
           totalRemainingStock: { $sum: "$remainingStock" },
           totalOpeningStock: { $sum: "$openingStock" },
           allTransactions: { $push: "$transactions" },
         },
       },
 
-      // 2️⃣ JOIN PRODUCT
+      // 2️⃣ Join Product
       {
         $lookup: {
           from: "items",
@@ -315,7 +349,7 @@ const getStockGroupedByProductId = async (req, res) => {
       },
       { $unwind: "$product" },
 
-      // 3️⃣ JOIN BARCODES
+      // 3️⃣ Join Barcodes
       {
         $lookup: {
           from: "product_barcodes",
@@ -325,10 +359,11 @@ const getStockGroupedByProductId = async (req, res) => {
         },
       },
 
-      // 4️⃣ RESPONSE SHAPE
+      // 4️⃣ Response Shape
       {
         $project: {
           _id: 1,
+          stockRecordIds: 1, // 🔹 include ItemStockRecord IDs
           totalRemainingStock: 1,
           totalOpeningStock: 1,
           allTransactions: 1,
@@ -340,7 +375,7 @@ const getStockGroupedByProductId = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      count: data.length, // 👉 should be 1
+      count: data.length,
       data,
     });
   } catch (error) {
@@ -350,6 +385,7 @@ const getStockGroupedByProductId = async (req, res) => {
     });
   }
 };
+
 
 export {
   create_item,

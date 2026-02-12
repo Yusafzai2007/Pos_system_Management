@@ -1,88 +1,80 @@
 import mongoose from "mongoose";
-import AutoIncrementFactory from "mongoose-sequence";
 
-const AutoIncrement = AutoIncrementFactory(mongoose);
-
-// Transaction schema
+// ---------------- TRANSACTION SCHEMA ----------------
 const TransactionSchema = new mongoose.Schema({
-  date: { type: Date, required: true, default: Date.now },
-  quantity: { type: Number, required: true },
-  type: {
-    type: String,
-    enum: ["Stock-In", "Stock-Out", "Opening"],
+  date: {
+    type: Date,
+    default: Date.now,
+  },
+  quantity: {
+    type: Number,
     required: true,
   },
-  reference: { type: String, required: true },
+  type: {
+    type: String,
+    enum: ["Opening", "Stock-In", "Stock-Out"],
+    required: true,
+  },
+  reference: {
+    type: String,
+    required: true,
+  },
 
-  // ✅ Prices added here
   costPrice: { type: Number, default: 0 },
   salePrice: { type: Number, default: 0 },
   discount: { type: Number, default: 0 },
   finalPrice: { type: Number, default: 0 },
 });
 
-// Item Stock Record Schema
+// ---------------- MAIN STOCK SCHEMA ----------------
 const itemStockRecordSchema = new mongoose.Schema(
   {
     productId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Item",
+      ref: "item",
       required: true,
+      unique: true,
     },
-    stockInId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "StockIn",
-      default: null,
-    },
-    stockOutId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "StockOut",
-      default: null,
-    },
+
     openingStock: {
       type: Number,
       default: 0,
     },
-    remainingStock: { type: Number, required: true },
+
+    remainingStock: {
+      type: Number,
+      required: true,
+    },
+
     transactions: [TransactionSchema],
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// Indexes
-itemStockRecordSchema.index({ productId: 1 });
-itemStockRecordSchema.index({ stockInId: 1 });
-itemStockRecordSchema.index({ stockOutId: 1 });
-
-// Pre save check
-itemStockRecordSchema.pre("save", function () {
-  if (this.remainingStock < -10000) {
-    throw new Error("Stock level too low");
-  }
-});
-
-itemStockRecordSchema.statics.updateStock = async function (
+// ---------------- STATIC METHOD ----------------
+itemStockRecordSchema.statics.updateStock = async function ({
   productId,
   quantity,
   type,
   reference,
-  prices = {}
-) {
+  prices = {},
+}) {
   let record = await this.findOne({ productId });
 
-  // 🟢 FIRST TIME (Opening / First Stock-In)
+  // 🟢 FIRST ENTRY
   if (!record) {
+    if (type !== "Opening") {
+      throw new Error("Opening stock required for first entry");
+    }
+
     record = new this({
       productId,
-      openingStock: type === "Opening" ? quantity : 0,
+      openingStock: quantity,
       remainingStock: quantity,
       transactions: [
         {
-          date: new Date(),
-          quantity: Math.abs(quantity),
-          type,
+          quantity,
+          type: "Opening",
           reference,
           ...prices,
         },
@@ -91,15 +83,17 @@ itemStockRecordSchema.statics.updateStock = async function (
   } else {
     // ❌ Opening dobara allow nahi
     if (type === "Opening") {
-      throw new Error("Opening stock can be set only once");
+      throw new Error("Opening stock already set");
     }
 
-    // ✅ Stock add / minus
+    // ➕ ➖ Stock calculation
     record.remainingStock += quantity;
 
-    // ✅ HAR Stock-In / Stock-Out ki NEW history
+    if (record.remainingStock < 0) {
+      throw new Error("Insufficient stock");
+    }
+
     record.transactions.push({
-      date: new Date(),
       quantity: Math.abs(quantity),
       type,
       reference,
@@ -111,11 +105,7 @@ itemStockRecordSchema.statics.updateStock = async function (
   return record;
 };
 
-
-
-
-
-// Instance method
+// ---------------- INSTANCE METHOD ----------------
 itemStockRecordSchema.methods.getCurrentStock = function () {
   return this.remainingStock;
 };

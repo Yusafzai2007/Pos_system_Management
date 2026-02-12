@@ -3,9 +3,10 @@ import { apiError } from "../utils/apiError.js";
 import { apiResponse } from "../utils/apiResponse.js";
 import ItemStockRecord from "../models/product_stock_record.model.js";
 import { item } from "../models/item.model.js";
+import { StockOut } from "../models/stock_out.model.js";
+import { StockIn } from "../models/stockIn.model.js";
 
 const create_product_stock_record = asynhandler(async (req, res) => {
-  console.log("Controller hit");
   const { id: productId } = req.params;
   const { openingStock } = req.body;
 
@@ -23,14 +24,13 @@ const create_product_stock_record = asynhandler(async (req, res) => {
     finalPrice: product.item_final_price,
   };
 
-  // Use the static method
-  const stockRecord = await ItemStockRecord.updateStock(
-    productId,
-    openingStock,
-    "Opening",
-    "Opening Stock",
-    prices, // <-- Pass prices here
-  );
+ const stockRecord = await ItemStockRecord.updateStock({
+  productId,        // your product id
+  quantity: openingStock, // the stock number
+  type: "Opening",
+  reference: "Opening Stock",
+  prices,           // the prices object
+});
 
   res
     .status(201)
@@ -80,4 +80,64 @@ const edit_product_stock_record = asynhandler(async (req, res) => {
     .json(new apiResponse(200, record, "Opening stock updated successfully"));
 });
 
-export { create_product_stock_record, edit_product_stock_record };
+
+const get_stock_record = asynhandler(async (req, res) => {
+  const records = await ItemStockRecord.find().populate(
+    'productId',
+    'item_Name modelNoSKU unit createdAt updatedAt'
+  );
+
+  if (!records || records.length === 0) {
+    throw new apiError(404, "No stock records found");
+  }
+
+  // Loop through each record and resolve Stock-In and Stock-Out transaction data
+  const recordsWithTransactions = await Promise.all(
+    records.map(async (record) => {
+      const updatedTransactions = await Promise.all(
+        record.transactions.map(async (txn) => {
+          let txnDetails = null;
+
+          if (txn.type === "Stock-In") {
+            txnDetails = await StockIn.findById(txn.reference); // reference should hold StockIn _id
+          } else if (txn.type === "Stock-Out") {
+            txnDetails = await StockOut.findById(txn.reference); // reference should hold StockOut _id
+          }
+
+          return {
+            ...txn.toObject(),
+            fullTransaction: txnDetails ? txnDetails.toObject() : null
+          };
+        })
+      );
+
+      return {
+        ...record.toObject(),
+        transactions: updatedTransactions
+      };
+    })
+  );
+
+  res.status(200).json(
+  new apiResponse(
+    200,
+    "Stock records with full transaction details retrieved successfully", // message
+    recordsWithTransactions // data
+  )
+);
+
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+export { create_product_stock_record, edit_product_stock_record,get_stock_record };

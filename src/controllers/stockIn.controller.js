@@ -7,119 +7,163 @@ import { ProductBarcode } from "../models/product_barcode.model.js";
 import ItemStockRecord from "../models/product_stock_record.model.js";
 
 const create_stockIn = asynhandler(async (req, res) => {
-  try {
-    const {
-      itemId,
-      stockAdded,
-      stockInDate,
-      stockInCategoryId,
-      invoiceNo,
-      stcokIn_price,
-      notes,
-    } = req.body;
+  const {
+    itemId,
+    stockAdded,
+    stockInDate,
+    stockInCategoryId,
+    invoiceNo,
+    stcokIn_price,
+    notes,
+  } = req.body;
 
-    // ---- validations (same as tumhari) ----
+  // ------------------- VALIDATIONS -------------------
+  if (!Array.isArray(itemId) || !Array.isArray(stockAdded)) {
+    throw new apiError(400, "itemId and stockAdded must be arrays");
+  }
 
-    const stockIn = await StockIn.create({
-      itemId,
-      stockAdded,
-      stockInDate,
-      stockInCategoryId,
-      invoiceNo,
-      stcokIn_price,
-      notes,
+  if (itemId.length !== stockAdded.length) {
+    throw new apiError(400, "itemId and stockAdded length must match");
+  }
+
+  if (!stockInDate || !stockInCategoryId) {
+    throw new apiError(400, "Required fields missing");
+  }
+
+  if (invoiceNo) {
+    const exists = await StockIn.findOne({ invoiceNo });
+    if (exists) throw new apiError(409, "Invoice number already exists");
+  }
+
+  for (let qty of stockAdded) {
+    if (Number(qty) <= 0) throw new apiError(400, "Quantity must be > 0");
+  }
+
+  // ------------------- CREATE STOCK-IN RECORD -------------------
+  const stockIn = await StockIn.create({
+    itemId,
+    stockAdded,
+    stockInDate,
+    stockInCategoryId,
+    invoiceNo,
+    stcokIn_price,
+    notes,
+  });
+
+  // ------------------- UPDATE STOCK -------------------
+  for (let i = 0; i < itemId.length; i++) {
+    const productId = itemId[i];
+    const qty = Number(stockAdded[i]);
+
+    const item = await Item.findById(productId);
+    if (!item) throw new apiError(404, `Item not found: ${productId}`);
+
+    // Update stock using object (✅ correct)
+    await ItemStockRecord.updateStock({
+      productId,
+      quantity: qty,           // positive for Stock-In
+      type: "Stock-In",
+      reference: stockIn._id.toString(),
+      prices: {
+        costPrice: item.actual_item_price || 0,
+        salePrice: item.selling_item_price || 0,
+        discount: item.item_discount_price || 0,
+        finalPrice: item.item_final_price || 0,
+      },
     });
+  }
+
+  res
+    .status(201)
+    .json(new apiResponse(201, stockIn, "Stock-In created successfully"));
+});
+
+
+
+
+const update_stockIn = asynhandler(async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { itemId, stockAdded } = req.body;
+
+    const existingStockIn = await StockIn.findById(id);
+    if (!existingStockIn) {
+      throw new apiError(404, "Stock-In not found");
+    }
 
     for (let i = 0; i < itemId.length; i++) {
       const productId = itemId[i];
-      const qty = Number(stockAdded[i]); // ✅ important
+      const oldQty = Number(existingStockIn.stockAdded[i]);
+      const newQty = Number(stockAdded[i]);
 
-      if (isNaN(qty)) {
-        throw new Error("Quantity is not a number");
+      if (isNaN(newQty) || newQty <= 0) {
+        throw new apiError(400, "Invalid quantity");
       }
 
+      const difference = newQty - oldQty;
       const item = await Item.findById(productId);
-      if (!item) {
-        throw new apiError(404, `Item not found: ${productId}`);
-      }
+      if (!item) throw new apiError(404, `Item not found: ${productId}`);
 
-      await ItemStockRecord.updateStock(
-        productId,
-        qty,
-        "Stock-In",
-        stockIn._id.toString(),
+      // Update remainingStock
+      await ItemStockRecord.updateOne(
+        { productId },
+        { $inc: { remainingStock: difference } }
+      );
+
+      // Try to update existing Stock-In transaction
+      const updated = await ItemStockRecord.updateOne(
+        { productId, "transactions.reference": existingStockIn._id.toString() },
         {
-          costPrice: item.actual_item_price || 0,
-          salePrice: item.selling_item_price || 0,
-          discount: item.item_discount_price || 0,
-          finalPrice: item.item_final_price || 0,
+          $set: {
+            "transactions.$[t].quantity": newQty,
+            "transactions.$[t].costPrice": item.actual_item_price || 0,
+            "transactions.$[t].salePrice": item.selling_item_price || 0,
+            "transactions.$[t].discount": item.item_discount_price || 0,
+            "transactions.$[t].finalPrice": item.item_final_price || 0,
+          },
+        },
+        {
+          arrayFilters: [{ "t.reference": existingStockIn._id.toString(), "t.type": "Stock-In" }],
         }
       );
+
+      // If transaction doesn't exist, push a new one
+      if (updated.modifiedCount === 0) {
+        await ItemStockRecord.updateOne(
+          { productId },
+          {
+            $push: {
+              transactions: {
+                date: new Date(),
+                quantity: newQty,
+                type: "Stock-In",
+                reference: existingStockIn._id.toString(),
+                costPrice: item.actual_item_price || 0,
+                salePrice: item.selling_item_price || 0,
+                discount: item.item_discount_price || 0,
+                finalPrice: item.item_final_price || 0,
+              },
+            },
+          }
+        );
+      }
     }
 
-    res
-      .status(201)
-      .json(new apiResponse(201, stockIn, "Stock-In created successfully"));
+    // Update StockIn document
+    existingStockIn.itemId = itemId;
+    existingStockIn.stockAdded = stockAdded;
+    await existingStockIn.save();
 
+    res.status(200).json(
+      new apiResponse(200, existingStockIn, "Stock-In updated correctly")
+    );
   } catch (error) {
-    console.error("❌ Stock-In Error:", error.message);
+    console.error("❌ Stock-In Update Error:", error.message);
     res.status(500).json({
       success: false,
       message: error.message,
     });
   }
-});
-
-
-
-const update_stockIn = asynhandler(async (req, res) => {
-  const { id } = req.params;
-  const { itemId, stockAdded } = req.body;
-
-  const existingStockIn = await StockIn.findById(id);
-  if (!existingStockIn) {
-    throw new apiError(404, "Stock-In not found");
-  }
-
-  // 🔹 LOOP items
-  for (let i = 0; i < itemId.length; i++) {
-    const productId = itemId[i];
-
-    const oldQty = Number(existingStockIn.stockAdded[i]); // 🟢 purani qty
-    const newQty = Number(stockAdded[i]);                 // 🟢 new qty
-
-    if (isNaN(newQty) || newQty <= 0) {
-      throw new apiError(400, "Invalid quantity");
-    }
-
-    // ⭐ DIFFERENCE
-    const difference = newQty - oldQty;
-
-    // 🟢 sirf DIFFERENCE apply hoga
-    await ItemStockRecord.updateOne(
-      { productId },
-      {
-        $inc: { remainingStock: difference },
-        $set: {
-          "transactions.$[t].quantity": Math.abs(newQty)
-        }
-      },
-      {
-        arrayFilters: [
-          { "t.reference": existingStockIn._id.toString() }
-        ]
-      }
-    );
-  }
-
-  // 🔹 StockIn update
-  existingStockIn.itemId = itemId;
-  existingStockIn.stockAdded = stockAdded;
-  await existingStockIn.save();
-
-  res.status(200).json(
-    new apiResponse(200, existingStockIn, "Stock-In updated correctly")
-  );
 });
 
 
