@@ -300,6 +300,32 @@ const get_stockInById = asynhandler(async (req, res) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export {
   create_stockIn,
   update_stockIn,

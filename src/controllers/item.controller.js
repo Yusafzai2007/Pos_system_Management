@@ -4,7 +4,6 @@ import { apiResponse } from "../utils/apiResponse.js";
 import { product_group } from "../models/product_group.model.js";
 import { item, item as Item } from "../models/item.model.js";
 import ItemStockRecord from "../models/product_stock_record.model.js";
-
 import { StockOut } from "../models/stock_out.model.js";
 
 const create_item = asynhandler(async (req, res) => {
@@ -57,7 +56,7 @@ const create_item = asynhandler(async (req, res) => {
   if (item_final_price !== expectedFinalPrice) {
     throw new apiError(
       402,
-      `Final price must be equal to selling price minus discount (${expectedFinalPrice})`
+      `Final price must be equal to selling price minus discount (${expectedFinalPrice})`,
     );
   }
 
@@ -65,7 +64,7 @@ const create_item = asynhandler(async (req, res) => {
   if (item_final_price < actual_item_price) {
     throw new apiError(
       403,
-      "Final price cannot be less than actual item price. Selling at a loss is not allowed!"
+      "Final price cannot be less than actual item price. Selling at a loss is not allowed!",
     );
   }
 
@@ -100,7 +99,6 @@ const create_item = asynhandler(async (req, res) => {
     .status(201)
     .json(new apiResponse(201, newItem, "Item created successfully"));
 });
-
 
 const update_item = asynhandler(async (req, res) => {
   const { id } = req.params;
@@ -245,7 +243,7 @@ const get_items = asynhandler(async (req, res) => {
   }
   res
     .status(200)
-    .json(new apiResponse(200, items, "Items retrieved successfully"));
+    .json(new apiResponse(200, "Items retrieved successfully", items));
 });
 
 export const getStockGroupedByProduct = async (req, res) => {
@@ -385,7 +383,6 @@ const getStockGroupedByProductId = async (req, res) => {
     });
   }
 };
-
 
 export {
   create_item,

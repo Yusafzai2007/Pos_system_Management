@@ -336,10 +336,44 @@ const get_stockOutById = asynhandler(async (req, res) => {
   );
 });
 
+
+
+
+
+const dashboard_stockOut = asynhandler(async (req, res) => {
+  const stockOutData = await StockOut.find()
+    res.status(200).json(
+      new apiResponse(200, stockOutData, "Stock-Out data fetched successfully")
+    );
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export {
   create_stockOut,
   update_stockOut,
   delete_stockOut,
   get_stockOut,
   get_stockOutById,
+  dashboard_stockOut,
 };
