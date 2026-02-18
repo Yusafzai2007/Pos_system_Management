@@ -7,7 +7,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const cloudinaryimg  = async (localapth) => {
+const cloudinaryimg = async (localapth) => {
   try {
     if (!localapth) return null;
 
@@ -19,4 +19,4 @@ const cloudinaryimg  = async (localapth) => {
   }
 };
 
-export { cloudinaryimg  };
+export { cloudinaryimg };

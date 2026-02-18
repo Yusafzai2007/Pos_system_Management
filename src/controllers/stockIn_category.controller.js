@@ -31,8 +31,8 @@ const create_stockIn_category = asynhandler(async (req, res) => {
       new apiResponse(
         201,
         "Stock In Category created successfully",
-        stockInCategory
-      )
+        stockInCategory,
+      ),
     );
 });
 
@@ -49,7 +49,7 @@ const update_stockIn_category = asynhandler(async (req, res) => {
       category_description: description,
       isActive,
     },
-    { new: true }
+    { new: true },
   );
   if (!stockInCategory) {
     throw new apiError(404, "Stock In Category not found");
@@ -60,8 +60,8 @@ const update_stockIn_category = asynhandler(async (req, res) => {
       new apiResponse(
         200,
         "Stock In Category updated successfully",
-        stockInCategory
-      )
+        stockInCategory,
+      ),
     );
 });
 
@@ -80,7 +80,9 @@ const delete_stockIn_category = asynhandler(async (req, res) => {
 });
 
 const get_stockIn_categories = asynhandler(async (req, res) => {
-  const stockInCategories = await StockInCategory.find();
+  const stockInCategories = await StockInCategory.find().sort({
+    createdAt: -1,
+  }); // 🔹 Latest first
   if (!stockInCategories || stockInCategories.length === 0) {
     throw new apiError(404, "No Stock In Categories found");
   }
@@ -90,8 +92,8 @@ const get_stockIn_categories = asynhandler(async (req, res) => {
       new apiResponse(
         200,
         "Stock In Categories fetched successfully",
-        stockInCategories
-      )
+        stockInCategories,
+      ),
     );
 });
 

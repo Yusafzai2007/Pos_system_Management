@@ -10,7 +10,7 @@ const create_stockOut_category = asynhandler(async (req, res) => {
   if (!stockoutCategoryName || !stockout_category_description) {
     throw new apiError(
       400,
-      "stockoutCategoryName and stockout_category_description are required"
+      "stockoutCategoryName and stockout_category_description are required",
     );
   }
 
@@ -37,15 +37,16 @@ const create_stockOut_category = asynhandler(async (req, res) => {
       new apiResponse(
         201,
         "Stock Out Category created successfully",
-        stockOutCategory
-      )
+        stockOutCategory,
+      ),
     );
 });
 
 // Update Stock Out Category
 const update_stockOut_category = asynhandler(async (req, res) => {
   const { id } = req.params;
-  const { stockoutCategoryName, stockout_category_description, isActive } = req.body;
+  const { stockoutCategoryName, stockout_category_description, isActive } =
+    req.body;
 
   if (!id) {
     throw new apiError(400, "ID parameter is required");
@@ -58,7 +59,7 @@ const update_stockOut_category = asynhandler(async (req, res) => {
       stockout_category_description,
       isActive,
     },
-    { new: true }
+    { new: true },
   );
 
   if (!stockOutCategory) {
@@ -71,8 +72,8 @@ const update_stockOut_category = asynhandler(async (req, res) => {
       new apiResponse(
         200,
         "Stock Out Category updated successfully",
-        stockOutCategory
-      )
+        stockOutCategory,
+      ),
     );
 });
 
@@ -92,13 +93,16 @@ const delete_stockOut_category = asynhandler(async (req, res) => {
 
   res
     .status(200)
-    .json(new apiResponse(200, "Stock Out Category deleted successfully", null));
+    .json(
+      new apiResponse(200, "Stock Out Category deleted successfully", null),
+    );
 });
 
 // Get All Stock Out Categories
 const get_stockOut_categories = asynhandler(async (req, res) => {
-  const stockOutCategories = await StockoutCategory.find();
-
+  const stockOutCategories = await StockoutCategory.find().sort({
+    createdAt: -1,
+  }); // 🔹 Latest first
   if (!stockOutCategories || stockOutCategories.length === 0) {
     throw new apiError(404, "No Stock Out Categories found");
   }
@@ -109,8 +113,8 @@ const get_stockOut_categories = asynhandler(async (req, res) => {
       new apiResponse(
         200,
         "Stock Out Categories fetched successfully",
-        stockOutCategories
-      )
+        stockOutCategories,
+      ),
     );
 });
 

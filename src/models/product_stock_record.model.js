@@ -19,7 +19,8 @@ const TransactionSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-
+  Total_sale: { type: Number, default: 0 },  
+  stockInCost: { type: Number, default: 0 },  
   costPrice: { type: Number, default: 0 },
   salePrice: { type: Number, default: 0 },
   discount: { type: Number, default: 0 },

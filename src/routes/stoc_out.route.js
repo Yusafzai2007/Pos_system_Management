@@ -12,7 +12,7 @@ const router = Router();
 
 router.post("/stock-out", create_stockOut);
 router.put("/stock-out/:id", update_stockOut);
-router.delete("/stock-out/:id", delete_stockOut);
+router.delete("/delete-stock-out/:id", delete_stockOut);
 
 router.get("/get_all_stockOut", get_stockOut);
 

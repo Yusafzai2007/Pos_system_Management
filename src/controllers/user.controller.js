@@ -154,40 +154,7 @@ const singleuser = asynhandler(async (req, res) => {
 
 
 
-// Update user
-const update_user = asynhandler(async (req, res) => {
-  const { id } = req.params;
-  const { userName, email, role, status } = req.body;
 
-  const user = await User.findById(id);
-  if (!user) {
-    throw new apiError(404, "User not found");
-  }
-
-  // Check if email is being updated to an existing one
-  if (email && email !== user.email) {
-    const emailExists = await User.findOne({ email });
-    if (emailExists) {
-      throw new apiError(409, "Email already in use");
-    }
-  }
-
-  user.userName = userName || user.userName;
-  user.email = email || user.email;
-  user.role = role || user.role;
-  if (status) {
-    user.status =
-      status.toLowerCase() === "deactive"
-        ? "inactive"
-        : status.toLowerCase();
-  }
-
-  await user.save();
-
-  res
-    .status(200)
-    .json(new apiResponse(200, user, "User updated successfully"));
-});
 
 
 
@@ -200,5 +167,4 @@ export {
   currentuser,
   deleteuser,
   singleuser,
-  update_user,
 };

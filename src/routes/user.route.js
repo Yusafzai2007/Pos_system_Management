@@ -5,7 +5,6 @@ import {
   deleteuser,
   logout_user,
   singleuser,
-  update_user,
   user_login,
   users,
 } from "../controllers/user.controller.js";
@@ -25,7 +24,6 @@ route.get("/current_user", jwtverify, currentuser);
 
 route.delete("/deleteuser/:id", deleteuser);
 
-route.put("/updaeuser/:id", update_user);
 
 route.get("/singleuser/:id", singleuser);
 

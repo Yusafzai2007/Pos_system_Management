@@ -61,10 +61,11 @@ const create_stockIn = asynhandler(async (req, res) => {
     // Update stock using object (✅ correct)
     await ItemStockRecord.updateStock({
       productId,
-      quantity: qty,           // positive for Stock-In
+      quantity: qty, // positive for Stock-In
       type: "Stock-In",
       reference: stockIn._id.toString(),
       prices: {
+        stockInCost: stcokIn_price || 0,
         costPrice: item.actual_item_price || 0,
         salePrice: item.selling_item_price || 0,
         discount: item.item_discount_price || 0,
@@ -78,94 +79,75 @@ const create_stockIn = asynhandler(async (req, res) => {
     .json(new apiResponse(201, stockIn, "Stock-In created successfully"));
 });
 
-
-
-
 const update_stockIn = asynhandler(async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { itemId, stockAdded } = req.body;
+  const { id } = req.params;
+  const { itemId, stockAdded, stcokIn_price } = req.body; // <-- stockIn_price add kiya
 
-    const existingStockIn = await StockIn.findById(id);
-    if (!existingStockIn) {
-      throw new apiError(404, "Stock-In not found");
-    }
+  const existingStockIn = await StockIn.findById(id);
+  if (!existingStockIn) throw new apiError(404, "Stock-In not found");
 
-    for (let i = 0; i < itemId.length; i++) {
-      const productId = itemId[i];
-      const oldQty = Number(existingStockIn.stockAdded[i]);
-      const newQty = Number(stockAdded[i]);
+  for (let i = 0; i < itemId.length; i++) {
+    const productId = itemId[i];
+    const oldQty = Number(existingStockIn.stockAdded[i] || 0);
+    const newQty = Number(stockAdded[i] || 0);
 
-      if (isNaN(newQty) || newQty <= 0) {
-        throw new apiError(400, "Invalid quantity");
-      }
+    if (newQty <= 0) throw new apiError(400, "Invalid quantity");
 
-      const difference = newQty - oldQty;
-      const item = await Item.findById(productId);
-      if (!item) throw new apiError(404, `Item not found: ${productId}`);
+    const item = await Item.findById(productId);
+    if (!item) throw new apiError(404, `Item not found: ${productId}`);
 
-      // Update remainingStock
-      await ItemStockRecord.updateOne(
-        { productId },
-        { $inc: { remainingStock: difference } }
-      );
+    const difference = newQty - oldQty;
 
-      // Try to update existing Stock-In transaction
-      const updated = await ItemStockRecord.updateOne(
-        { productId, "transactions.reference": existingStockIn._id.toString() },
-        {
-          $set: {
-            "transactions.$[t].quantity": newQty,
-            "transactions.$[t].costPrice": item.actual_item_price || 0,
-            "transactions.$[t].salePrice": item.selling_item_price || 0,
-            "transactions.$[t].discount": item.item_discount_price || 0,
-            "transactions.$[t].finalPrice": item.item_final_price || 0,
-          },
-        },
-        {
-          arrayFilters: [{ "t.reference": existingStockIn._id.toString(), "t.type": "Stock-In" }],
-        }
-      );
+    // ➕ Update remainingStock
+    const record = await ItemStockRecord.findOne({ productId });
+    if (!record) throw new apiError(404, "Stock record not found");
 
-      // If transaction doesn't exist, push a new one
-      if (updated.modifiedCount === 0) {
-        await ItemStockRecord.updateOne(
-          { productId },
-          {
-            $push: {
-              transactions: {
-                date: new Date(),
-                quantity: newQty,
-                type: "Stock-In",
-                reference: existingStockIn._id.toString(),
-                costPrice: item.actual_item_price || 0,
-                salePrice: item.selling_item_price || 0,
-                discount: item.item_discount_price || 0,
-                finalPrice: item.item_final_price || 0,
-              },
-            },
-          }
-        );
-      }
-    }
+    record.remainingStock += difference;
 
-    // Update StockIn document
-    existingStockIn.itemId = itemId;
-    existingStockIn.stockAdded = stockAdded;
-    await existingStockIn.save();
-
-    res.status(200).json(
-      new apiResponse(200, existingStockIn, "Stock-In updated correctly")
+    // ➕ Update Stock-In transaction
+    const txn = record.transactions.find(
+      (t) =>
+        t.reference === existingStockIn._id.toString() && t.type === "Stock-In",
     );
-  } catch (error) {
-    console.error("❌ Stock-In Update Error:", error.message);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-});
 
+    if (txn) {
+      txn.quantity = newQty;
+      txn.stockInCost = stcokIn_price || 0;
+      txn.costPrice = item.actual_item_price || 0;
+      txn.salePrice = item.selling_item_price || 0;
+      txn.discount = item.item_discount_price || 0;
+      txn.finalPrice = item.item_final_price || 0;
+      txn.date = new Date();
+    } else {
+      // Agar transaction exist nahi, push new
+      record.transactions.push({
+        date: new Date(),
+        quantity: newQty,
+        type: "Stock-In",
+        reference: existingStockIn._id.toString(),
+        stockInCost: stcokIn_price || 0,
+        costPrice: item.actual_item_price || 0,
+        salePrice: item.selling_item_price || 0,
+        discount: item.item_discount_price || 0,
+        finalPrice: item.item_final_price || 0,
+      });
+    }
+
+    await record.save();
+  }
+
+  // Update StockIn document
+  existingStockIn.itemId = itemId;
+  existingStockIn.stockAdded = stockAdded;
+  existingStockIn.stcokIn_price = stcokIn_price; // <-- update StockIn price
+  await existingStockIn.save();
+
+  res
+    .status(200)
+    .json(
+      new apiResponse(200, existingStockIn, "Stock-In updated successfully"),
+    );
+});
 
 const delete_stockIn = asynhandler(async (req, res) => {
   const { id } = req.params;
@@ -183,7 +165,7 @@ const delete_stockIn = asynhandler(async (req, res) => {
     // remainingStock se minus karo
     await ItemStockRecord.updateOne(
       { productId },
-      { $inc: { remainingStock: -qty } }
+      { $inc: { remainingStock: -qty } },
     );
   }
 
@@ -195,7 +177,6 @@ const delete_stockIn = asynhandler(async (req, res) => {
     .json(new apiResponse(200, deletedata, "Stock-In deleted successfully"));
 });
 
-
 const get_stockIn = asynhandler(async (req, res) => {
   const stockInData = await StockIn.find()
     .populate({
@@ -206,12 +187,12 @@ const get_stockIn = asynhandler(async (req, res) => {
       },
     })
     .populate("stockInCategoryId")
+    .sort({ createdAt: -1 }) // 🔹 Latest first
+
     .lean();
 
   // 🔹 Collect all item IDs
-  const itemIds = stockInData.flatMap((s) =>
-    s.itemId.map((i) => i._id)
-  );
+  const itemIds = stockInData.flatMap((s) => s.itemId.map((i) => i._id));
 
   // 🔹 Get barcodes
   const barcodes = await ProductBarcode.find({
@@ -228,12 +209,12 @@ const get_stockIn = asynhandler(async (req, res) => {
     stock.itemId.forEach((item) => {
       // Barcodes
       item.barcodes = barcodes.filter(
-        (b) => b.stock_productId.toString() === item._id.toString()
+        (b) => b.stock_productId.toString() === item._id.toString(),
       );
 
       // Stock record
       const record = stockRecords.find(
-        (r) => r.productId.toString() === item._id.toString()
+        (r) => r.productId.toString() === item._id.toString(),
       );
 
       item.openingStock = record?.openingStock || 0;
@@ -241,15 +222,16 @@ const get_stockIn = asynhandler(async (req, res) => {
     });
   });
 
-  res.status(200).json(
-    new apiResponse(
-      200,
-      stockInData,
-      "Stock-In data with opening & remaining stock fetched successfully"
-    )
-  );
+  res
+    .status(200)
+    .json(
+      new apiResponse(
+        200,
+        stockInData,
+        "Stock-In data with opening & remaining stock fetched successfully",
+      ),
+    );
 });
-
 
 import mongoose from "mongoose";
 
@@ -269,9 +251,7 @@ const get_stockInById = asynhandler(async (req, res) => {
     .populate("stockInCategoryId")
     .lean();
 
-  const itemIds = stockInData.flatMap((s) =>
-    s.itemId.map((i) => i._id)
-  );
+  const itemIds = stockInData.flatMap((s) => s.itemId.map((i) => i._id));
 
   // 🔥 get stock records
   const stockRecords = await ItemStockRecord.find({
@@ -282,7 +262,7 @@ const get_stockInById = asynhandler(async (req, res) => {
   stockInData.forEach((stock) => {
     stock.itemId.forEach((item) => {
       const record = stockRecords.find(
-        (r) => r.productId.toString() === item._id.toString()
+        (r) => r.productId.toString() === item._id.toString(),
       );
 
       item.openingStock = record ? record.openingStock : 0;
@@ -293,38 +273,16 @@ const get_stockInById = asynhandler(async (req, res) => {
     });
   });
 
-  res.status(200).json(
-    new apiResponse(200, "Stock-In data with opening & remaining stock fetched successfully", stockInData)
-  );
+  res
+    .status(200)
+    .json(
+      new apiResponse(
+        200,
+        "Stock-In data with opening & remaining stock fetched successfully",
+        stockInData,
+      ),
+    );
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 export {
   create_stockIn,
