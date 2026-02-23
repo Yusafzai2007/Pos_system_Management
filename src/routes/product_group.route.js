@@ -12,4 +12,5 @@ route.post("/create-product-group", create_item_group);
 route.put("/update-product-group/:id", update_item_group);
 route.delete("/delete-product-group/:id", delete_item_group);
 route.get("/get-product-groups", get_item_groups);
+
 export default route;

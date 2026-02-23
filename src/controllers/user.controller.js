@@ -153,7 +153,26 @@ const singleuser = asynhandler(async (req, res) => {
 });
 
 
+const updateuser = asynhandler(async (req, res) => {
+  const { id } = req.params;
+  const { userName, email, role, status } = req.body;
 
+  const user = await User.findById(id);
+  if (!user) {
+    throw new apiError(404, "userId not found");
+  }
+
+  if (userName) user.userName = userName;
+  if (email) user.email = email;
+  if (role) user.role = role;
+  if (status) user.status = status;
+
+  await user.save();
+
+  res.status(200).json(
+    new apiResponse(200, user, "user updated successfully")
+  );
+});
 
 
 
@@ -167,4 +186,5 @@ export {
   currentuser,
   deleteuser,
   singleuser,
+  updateuser,
 };
