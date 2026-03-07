@@ -1,3 +1,4 @@
+// models/stockOut.model.js
 import mongoose from "mongoose";
 
 const stockOutSchema = new mongoose.Schema(
@@ -23,6 +24,7 @@ const stockOutSchema = new mongoose.Schema(
       ref: "StockoutCategory",
       required: true,
     },
+    
     Total_sale: {
       type: Number,
       required: true,
@@ -42,18 +44,36 @@ const stockOutSchema = new mongoose.Schema(
     stockOutDate: {
       type: Date,
       required: true,
-      // default: Date.now,
     },
+    
     date: {
       type: Date,
       default: Date.now,
     },
+    
     invoiceNo: {
       type: String,
-      sparse: true, // Allows multiple documents with null/undefined values
-      default: null, // Use null instead of empty string
+      sparse: true,
+      default: null,
       required: false,
     },
+    
+    // Payment Method Field
+    paymentMethod: {
+      type: String,
+      enum: ['cash', 'online'],
+      required: true,
+      default: 'cash'
+    },
+    
+    // Transaction ID for online payments
+    transactionId: {
+      type: String,
+      sparse: true,
+      default: null,
+      required: false
+    },
+    
     isActive: {
       type: Boolean,
       default: true,
@@ -63,7 +83,7 @@ const stockOutSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  },
+  }
 );
 
 export const StockOut = mongoose.model("StockOut", stockOutSchema);

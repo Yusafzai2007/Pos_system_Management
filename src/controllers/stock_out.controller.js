@@ -16,36 +16,61 @@ const create_stockOut = asynhandler(async (req, res) => {
     Total_sale,
     stockOutDate,
     invoiceNo,
+    paymentMethod,  // New field
+    transactionId   // New field (optional for cash, required for online)
   } = req.body;
 
+  // Validate arrays
   if (!Array.isArray(itemId) || !Array.isArray(quantity))
     throw new apiError(400, "itemId and quantity must be arrays");
 
   if (itemId.length !== quantity.length)
     throw new apiError(400, "itemId and quantity length must match");
 
+  // Validate required fields
   if (!stockOutCategoryId || !Total_sale || !stockOutDate)
     throw new apiError(400, "Required fields missing");
 
+  // Validate payment method
+  if (!paymentMethod) {
+    throw new apiError(400, "Payment method is required");
+  }
+
+  if (!['cash', 'online'].includes(paymentMethod)) {
+    throw new apiError(400, "Payment method must be either 'cash' or 'online'");
+  }
+
+  // If payment method is online, transaction ID is required
+  if (paymentMethod === 'online' && !transactionId) {
+    throw new apiError(400, "Transaction ID is required for online payments");
+  }
+
+  // Check if invoice number exists (if provided)
   if (invoiceNo) {
     const exists = await StockOut.findOne({ invoiceNo });
     if (exists) throw new apiError(409, "Invoice number already exists");
   }
 
+  // Validate quantities
   for (let qty of quantity) {
     if (qty <= 0) throw new apiError(400, "Quantity must be greater than 0");
   }
 
-  // Create Stock-Out document
-  const stockOut = await StockOut.create({
+  // Create Stock-Out document with payment method
+  const stockOutData = {
     itemId,
     quantity,
     stockOutCategoryId,
     Total_sale,
     stockOutDate,
     invoiceNo,
-  });
+    paymentMethod,
+    ...(paymentMethod === 'online' && { transactionId }) // Add transactionId only for online payments
+  };
 
+  const stockOut = await StockOut.create(stockOutData);
+
+  // Update stock records for each item
   for (let i = 0; i < itemId.length; i++) {
     const productId = itemId[i];
     const qty = Number(quantity[i]);
@@ -76,7 +101,9 @@ const create_stockOut = asynhandler(async (req, res) => {
       salePrice: item.selling_item_price || 0,
       discount: item.item_discount_price || 0,
       finalPrice: item.item_final_price || 0,
-      Total_sale: Total_sale || 0, // ✅ Save Total_sale
+      Total_sale: Total_sale || 0,
+      paymentMethod: paymentMethod, // Save payment method in transaction
+      transactionId: transactionId || null // Save transaction ID if available
     });
 
     await record.save();
@@ -86,7 +113,6 @@ const create_stockOut = asynhandler(async (req, res) => {
     .status(201)
     .json(new apiResponse(201, stockOut, "Stock-Out created successfully"));
 });
-
 /* ======================================================
    UPDATE STOCK-OUT
 ====================================================== */
